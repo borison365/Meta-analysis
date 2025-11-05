@@ -1,3 +1,4 @@
+
 ####I adjusted this script for the remaining outcomes, and took into account the different denominators for falls, ortho, and kidney as in the dataset.#######
 
 f <- read_excel("follow up KQ1.xlsx")

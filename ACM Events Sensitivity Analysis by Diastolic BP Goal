@@ -1,0 +1,210 @@
+
+library(dplyr)
+library(stringr)
+library(readxl)
+
+k <- read_excel("follow up KQ1.xlsx")
+t<- read_excel("ACP KQ1_all studies v7_Final_DP(bp goals).xlsx")
+s <- read_excel("reshaped_main_with_all_RoB.xlsx")
+
+merge <- s |>
+  left_join(k, by = "Study") |>
+  left_join(t, by = "Study")      # third table
+
+colnames(merge)
+
+# 1) Clean problematic characters and convert to numeric safely
+merge <- merge %>%
+  mutate(
+    # keep original for debugging
+    .raw_Lower_DBP = as.character(`Lower (DBP)`),
+    # normalize common unicode dashes and whitespace, remove commas
+    .clean_Lower_DBP = .raw_Lower_DBP %>%
+      # replace unicode minus (U+2212) and en-dash (U+2013) with ASCII minus
+      str_replace_all("\u2212", "-") %>%
+      str_replace_all("\u2013", "-") %>%
+      # replace any non-breaking spaces, regular multiple spaces, tabs
+      str_replace_all("\u00A0", " ") %>%
+      str_squish() %>%
+      # remove thousands separators or stray commas
+      str_replace_all(",", "") %>%
+      # if parentheses like "120 (130)" keep the first number - optional
+      # str_extract("^-?\\d+(?:\\.\\d+)?")  # (optional, left commented)
+      as.character(),
+    # final numeric coercion (suppress warnings or keep them if you want)
+    `Lower (DBP)` = as.numeric(.clean_Lower_DBP)
+  )
+
+# 2) Show how many converted to NA (diagnostic)
+n_total <- nrow(merge)
+n_na <- sum(is.na(merge$`Lower (DBP)`))
+cat(sprintf("Converted to numeric: %d / %d non-NA ( %d NAs )\n", n_total - n_na, n_total, n_na))
+
+# 3) Show the problematic raw strings (if any) to help debug
+if (n_na > 0) {
+  cat("=== Examples of rows where conversion produced NA ===\n")
+  print(
+    merge %>%
+      filter(is.na(`Lower (DBP)`)) %>%
+      select(Study, .raw_Lower_DBP, .clean_Lower_DBP) %>%
+      slice_head(n = 20)
+  )
+} else {
+  cat("No conversion failures detected.\n")
+}
+
+# 4) Now create the group variable safely (use backticks and numeric comparisons).
+#    
+merge <- merge %>%
+  mutate(
+    BP_goal_group_DBP = case_when(
+      !is.na(`Lower (DBP)`) & `Lower (DBP)` < 70                  ~ "≤69",
+      `Lower (DBP)` >= 70 & `Lower (DBP)` < 80                    ~ "70–79",
+      `Lower (DBP)` >= 80 & `Lower (DBP)` < 90                    ~ "80–89",
+      `Lower (DBP)` >= 90                                         ~ "90",
+      TRUE                                                         ~ NA_character_
+    )
+  )
+
+# 5) Quick frequency table to check groups
+cat("=== BP_goal_group_DBP distribution ===\n")
+print(table(merge$BP_goal_group_DBP, useNA = "ifany"))
+
+# 6) If you want to drop the helper columns afterwards:
+merge <- merge %>% select(-.raw_Lower_DBP, -.clean_Lower_DBP)
+
+# --- Keep descriptive variables ---
+
+num_cols <- c("ACM_low", "nTOT_low", "ACM_control", "nTOT_control")
+
+# force numeric conversion
+merge[num_cols] <- lapply(merge[num_cols], \(x) as.numeric(as.character(x)))
+
+descriptive_vars <- c(
+  "age (mean)", "female (%)", "high CV risk (%)", "DM (%)",
+  "BP_goal_group_DBP",
+  "FUP_ACM", "FUP_CVM", "FUP_MCVE",
+  "FUP_stroke", "FUP_kidney", "FUP_syncope",
+  "FUP_ortho", "FUP_falls",
+  "FUP_qol_phy", "FUP_qol_ment",
+  "FUP_qol_EQ5D", "FUP_qol_EQVAS"
+)
+
+view(merge$BP_goal_group_DBP)
+
+meta_mcve <- merge%>%
+  select(Study, all_of(num_cols), all_of(descriptive_vars))
+
+#Remove rows where any event column is NA after conversion
+meta_mcve <- meta_mcve%>%
+  filter(complete.cases(across(all_of(num_cols))))
+nrow(meta_mcve)
+
+# 2. Convert to numeric first
+meta_mcve[num_cols] <- lapply(meta_mcve[num_cols], function(x) as.numeric(as.character(x)))
+
+# 4. Remove rows with any NA in numeric columns
+meta_mcve <- meta_mcve %>%
+  filter(complete.cases(across(all_of(num_cols))))
+
+
+meta_mcve<- meta_mcve %>%
+  # Force numeric for all meta-analysis variables
+  mutate(across(all_of(num_cols), ~as.numeric(as.character(.)))) %>%
+  # Ensure subgroup variable is a clean character string
+  mutate(BP_goal_group_DBP = trimws(as.character(BP_goal_group_DBP))) %>%
+  # Keep only rows where ALL required variables are non-NA
+  filter(complete.cases(across(c(all_of(num_cols), "BP_goal_group_DBP")))) 
+
+# arrange studies in the order of bp goal
+meta_mcve <- meta_mcve|>
+  mutate(
+    BP_goal_group_DBP = factor(
+      BP_goal_group_DBP,
+      levels = c("70–79", "80–89", "90")
+    )
+  ) |>
+  arrange(BP_goal_group_DBP)
+
+view(meta_mcve)
+
+nrow(meta_mcve)
+colnames(meta_mcve)
+
+# Ensure subgroup variable is quoted correctly - !!! use mcve for acm for coding sake
+
+meta_mc <- metabin(
+  event.e = ACM_low,
+  n.e = nTOT_low,
+  event.c = ACM_control,
+  n.c = nTOT_control,
+  studlab = Study,
+  data = meta_mcve,
+  sm = "RR",
+  method = "Inverse",
+  common = FALSE,
+  random = TRUE,
+  subgroup = BP_goal_group_DBP,   # 
+  method.tau = "REML",
+  incr = "TACC"
+)
+
+forest(
+  meta_mc,
+  print.byvar = TRUE,
+  text.random = "Overall (Random effects)",
+  prediction = TRUE,
+  print.I2 = TRUE,
+  
+  smlab = "Risk Ratio (95% CI)",
+  xlab = "Risk Ratio"
+)
+
+#Add descriptive variables to meta object 
+meta_mc$`age (mean)`       <- meta_mc$`age (mean)`
+meta_mc$`female (%)`       <- meta_mc$`female (%)`
+meta_mc$`high CV risk (%)` <- meta_mc$`high CV risk (%)`
+meta_mc$`DM (%)`           <- meta_mc$`DM (%)` 
+meta_mc$`FUP_ACM`     <- meta_mc$`FUP_ACM`
+
+# Forest plot in pdf
+pdf("forest_metaACM_rr.pdf", width = 16, height = 7)
+
+forest(
+  meta_mc,
+  label.e = "Lower BP goals",
+  label.c = "Higher BP goals",
+  
+  leftcols = c("studlab",
+               "event.e", "n.e", "event.c", "n.c",
+               "age (mean)", "female (%)", "high CV risk (%)",
+               "DM (%)", "FUP_ACM"),
+  leftlabs = c("Study",
+               "Events", "Total", "Events", "Total",
+               "Age (mean)", "Female (%)", "High CV risk (%)",
+               "DM (%)", "FU (months)"),
+  
+  comb.fixed = FALSE,
+  comb.random = TRUE,
+  print.study.ci = TRUE,
+  showweights = TRUE,
+  digits = 2,
+  colgap.left = "7mm",
+  fontsize = 10,
+  plotwidth = "9cm",
+  xlim = c(0.1,10),
+  pooled.events = TRUE,
+  print.I2.ci = TRUE,
+  print.tau2 = TRUE,
+  overall.hetstat = TRUE,
+  test.overall = TRUE
+)
+
+# Title
+grid.text(
+  "Analysis of All Cause Mortality Events by Diastolic BP Goal",
+  x = unit(0.5, "npc"),
+  y = unit(0.93, "npc"),
+  gp = gpar(fontsize = 13, fontface = "bold")
+)
+dev.off()

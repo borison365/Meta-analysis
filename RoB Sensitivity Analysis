@@ -1,0 +1,51 @@
+library(grid)
+library(readxl)
+dstr <- read_excel("reshaped_main_with_all_RoB.xlsx")
+
+colnames(dstr)
+
+data_str <- dstr%>%
+  mutate(
+    RoB_stroke_Overall_subgroup = case_when(
+      RoB_stroke_Overall == "High" ~ "Some concern to high",
+      RoB_stroke_Overall == "Some concerns" ~ "Some concern to high",
+      RoB_stroke_Overall == "Low" ~ "Low",
+      TRUE ~ NA_character_   # catch any unexpected values
+    )
+  )
+colnames(data_str)
+
+data_str$stroke_low <- as.numeric(data_str$stroke_low)
+data_str$nTOT_low <- as.numeric(data_str$nTOT_low)
+data_str$stroke_control <- as.numeric(data_str$stroke_control)
+data_str$nTOT_control <- as.numeric(data_str$nTOT_control)
+
+data_str <- subset(data_str, !is.na(stroke_low) & !is.na(stroke_control) & !is.na(RoB_stroke_Overall_subgroup))
+
+
+meta_str <- metabin(event.e = stroke_low, n.e = nTOT_low,
+                    event.c = stroke_control, n.c = nTOT_control,
+                    studlab = Study,
+                    data = data_str,
+                    sm = "RR",
+                    method = "Inverse",
+                    common = FALSE,
+                    subgroup = RoB_stroke_Overall_subgroup,
+                    random = TRUE,
+                    method.tau = "REML", incr = "TACC")
+
+
+forest(meta_str,
+       pooled.events = TRUE,
+       label.e = "Lower BP goals",
+       label.c = "Higher BP goals",
+       colgap.left = "5mm", 
+       rows.gr = 4)
+grid.text(" Stroke Sensitivity Analysis of RoB Low vs Some Concerns to High",
+          x = unit(0.5, "npc"),
+          y = unit(0.93, "npc"),
+          gp = gpar(fontsize = 14, fontface = "bold"))
+dev.off()
+
+
+

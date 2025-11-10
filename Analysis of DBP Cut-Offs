@@ -1,3 +1,14 @@
+#######################################################################################
+################ EMAIL FROM ACP ###################################################
+##############################################################################
+#####  The subgroup has agreed on ≤ 80 mmHg as the cut-off for DBP sensitivity analysis.
+     The subgroup has agreed on the following lower DBP (intervention) interval ranges for the subgroup analysis:
+     70-79 mmHg
+     80-89 mmHg
+     90 mmHg ####################################################################################
+
+##########################  
+
 library(grid)
 library(dplyr)
 library(tidyverse)

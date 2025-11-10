@@ -134,7 +134,7 @@ colnames(meta_mcve)
 # Ensure subgroup variable is quoted correctly - !!! use mcve for acm for coding sake
 
 meta_mc <- metabin(
-  event.e = ACM_low,
+  event.e = ACM_low, # the correct variable passed!
   n.e = nTOT_low,
   event.c = ACM_control,
   n.c = nTOT_control,

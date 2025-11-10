@@ -1,3 +1,7 @@
+################################### EXAMPLE WITH ALL CAUSE MORTALITY################################
+####################################################################################################
+
+# THIS CODE WAS ADJUSTED FOR THE REMAINING OUTCOMES AND THE DENOMINATORS FOR THE 3 OUTCOMES (FALLS, ORTHO AND KIDNEY) WERE STRICTLY FOLLOWED
 
 library(dplyr)
 library(stringr)

@@ -1,9 +1,8 @@
 
-####I adjusted this script for the remaining outcomes, and took into account the different denominators for falls, ortho, and kidney as in the dataset.#######
+#### I adjusted this script for the remaining outcomes, and took into account the different denominators for falls, ortho, and kidney as in the dataset #######
+####################   Outcome: ACM
 
 f <- read_excel("follow up KQ1.xlsx")
-
-
 d<- read_excel("ACP KQ1_all studies v7_Final_DP(bp goals).xlsx")
 l <- read_excel("reshaped_main_with_all_RoB.xlsx")
 

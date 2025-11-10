@@ -1,4 +1,13 @@
-## Outcome: MCVE - data set at the end###
+############################################################################
+########### EMAIL FROM ACP ##############################################
+############################################################
+################### Attached are all the approved thresholds.
+## The subgroup has approved two cut-off values for the sensitivity analysis <130 mmHg and <120 mmHg (both clinically relevant scenarios and where the SBP goal definitions between the intervention and comparator of included studies do not overlap).
+Additionally, we are requesting a new subgroup analysis defined by the following intervention ranges (lower SBP goal): <120, 120-129, 130-139, 140-149, >150, accompanied by the forest plots that include study characteristics, as agreed during the latest TEP-meeting. The 
+subgroup analysis request will also encompass DBP goals. Please provide goal definitions for intervention and comparators for the DBP goal, as you did for SBP goal, so we can work with the Subgroup to determine the ranges.       ##########
+
+
+## Outcome: MCVE 
 
 library(grid)
 library(dplyr)

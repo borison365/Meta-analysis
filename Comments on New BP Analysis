@@ -1,0 +1,807 @@
+Summary Cut-off analysis
+New analysis
+<120 vs >=120 comparison
+QoL letf out, only one observation SPRINT. The bp goal of  AASK (MAP) was not considered. 
+< 130 vs >130
+For outcome ortho, all studies had bp goal <130
+<80 vs >=80 comparison
+4 outcome for this range
+
+New RoB analysis
+RoB for <120 - all outcomes analyzed
+120-129 - all outcomes analyzed
+130-139 - no studies reporting ortho with this goal, 
+140-149 - no outcome for syncope, same for ortho, and kidney, 
+> =150 -  no outcome for CVM, syncope, ortho, and falls
+70-79 - no outcome for CVM, syncope, kidney, and falls.
+80-89 - no outcome for ortho, and falls
+
+SBP analysis
+ 
+ACM - k=15, <120 (n=5), <130 (n=10), this is consistent with the table summary forwarded by TEP. One study did not have an SBP goal.
+MCVE - k=12, <120 (n=5), <130 (n=7)
+CVM - k=7, <120 (n=4), <130 (n=3)
+Stroke - k=13, <120 (n=5), <130 (n=8)
+Syncope - k=7, <120 (n=5), <130 (n=2)
+Ortho - k=5, <120 (n=3), <130 (n=2)
+Kidney - k=7, <120 (n=5), <130 (n=2)
+Falls - k=10, <120 (n=4), <130 (n=6)
+
+Funnel Plots (requires 10 or more studies)
+Range 120-129 , ACM - k =9, the remaining outcomes 8 or lower…
+
+Absolute plots comparison 
+<120 (5 studies)
+MCVE - TE similar to that of forest - points fall on appropriate TU - ok
+All rest okay
+b. 120-129 (11 studies)
+ACM- kim had 0 outcome ( scripts kept the study but did not use the values, k =9 INSTEAD OF 10)
+All point estimates checked and they are okay.
+C. 130-139 (3 studies)
+No plots for ortho, no data from MA, due to no outcome….
+D. 140-149 (1 study)
+5 outcome with this bp goal
+E. 150 (1 study)
+4 outcome with this bp range
+70-79 (3 studies)
+4 outcome
+80-89 (4 studies)
+5 outcome
+90 ( 0 studies)
+Wei et al not considered since both arms had same bp goal
+
+DBP analysis (cut-off ≤ 80)
+ACM - 8 studies (max # of studies with dbp)
+MCVE - 6 studies
+CVM mortality,- 0 studies, NA because only two studies (HOT & wei et al.,) had a dbp >80
+Stroke - 5 studies included.
+Syncope- one study - RESPECT.
+Kidney fxn - 4 studies
+Ortho - 0 studies, all 8 studies with dbp cut-offs had NR as outcome for this domain.
+Falls - 0 studies - one study had outcome for the dbp goal >80
+
+
+SBP Cut- offs Script
+
+Outcome: MCVE - data set at the end
+
+library(grid)
+library(dplyr)
+library(tidyverse)
+library(meta)
+library(ggplot2)
+library(readxl)
+
+g <- read_excel("follow up KQ1.xlsx")        # indexed from the follow-up section of the reshaped sheet you created
+
+s<- read_excel("reshaped_main_with_all_RoB.xlsx") # from the dataset you sent to us
+
+f <- read_excel("ACP KQ1_all studies v7_Final_DP(bp goals).xlsx")  # indexed from the last version you have, see the table below
+
+
+merged <- s |>
+  left_join(f, by = "Study") |>
+  left_join(g, by = "Study")      # third table
+
+merged <- merged %>%
+  mutate(
+    SBP_Cut_Off = case_when(
+      !is.na(`Lower (SBP)`) & `Lower (SBP)` < 120 ~ "<120",
+      !is.na(`Lower (SBP)`) & `Lower (SBP)` >= 120 & `Lower (SBP)` < 130 ~ "<130",
+      TRUE ~ NA_character_
+    )
+  )
+
+merged_mk <- merged %>%
+  mutate(`Lower (SBP)` = as.numeric(as.character(`Lower (SBP)`))) %>%
+  filter(!is.na(`Lower (SBP)`))
+
+colnames(merged_mk)
+# --- Keep descriptive variables ---
+
+num_cols <- c("MCVE_low", "nTOT_low", "MCVE_control", "nTOT_control")
+
+# force numeric conversion
+merged_mk[num_cols] <- lapply(merged_mk[num_cols], \(x) as.numeric(as.character(x)))
+
+descriptive_vars <- c(
+  "age (mean)", "female (%)", "high CV risk (%)", "DM (%)",
+  "SBP_Cut_Off",
+  "FUP_ACM", "FUP_CVM", "FUP_MCVE",
+  "FUP_stroke", "FUP_kidney", "FUP_syncope",
+  "FUP_ortho", "FUP_falls",
+  "FUP_qol_phy", "FUP_qol_ment",
+  "FUP_qol_EQ5D", "FUP_qol_EQVAS"
+)
+meta_mcve <- merged_mk%>%
+  select(Study, all_of(num_cols), all_of(descriptive_vars))
+
+colnames(meta_mcve)
+
+# 2. Convert to numeric first
+meta_mcve[num_cols] <- lapply(meta_mcve[num_cols], function(x) as.numeric(as.character(x)))
+
+# 4. Remove rows with any NA in numeric columns
+meta_mcv <- meta_mcve %>%
+  filter(complete.cases(across(all_of(num_cols))))
+
+view(meta_mcv)
+
+# 6. Check lengths
+length(meta_mcv$MCVE_low)
+length(meta_mcv$SBP_Cut_Off)
+
+meta_make <- meta_mcv %>%
+  mutate(across(all_of(num_cols), ~as.numeric(as.character(.)))) %>%
+  mutate(SBP_Cut_Off = trimws(as.character(SBP_Cut_Off))) %>%
+  filter(complete.cases(across(c(all_of(num_cols), "SBP_Cut_Off")))) 
+
+
+# arrange studies in the order of bp goal
+meta_make <- meta_make|>
+  mutate(
+    SBP_Cut_Off = factor(
+      SBP_Cut_Off,
+      levels = c("<120", "<130")
+    )
+  ) |>
+  arrange(SBP_Cut_Off)
+
+view(meta_make)
+
+
+# Ensure subgroup variable is quoted correctly
+meta_mjcv <- metabin(
+  event.e = MCVE_low,
+  n.e = nTOT_low,
+  event.c = MCVE_control,
+  n.c = nTOT_control,
+  studlab = Study,
+  data = meta_make,
+  sm = "RR",
+  method = "Inverse",
+  common = FALSE,
+  random = TRUE,
+  subgroup = meta_make$SBP_Cut_Off,
+  method.tau = "REML",
+  incr = "TACC"
+)
+
+forest(
+  meta_mjcv,
+  print.byvar = TRUE,
+  text.random = "Overall (Random effects)",
+  prediction = TRUE,
+  print.I2 = TRUE,
+  
+  smlab = "Risk Ratio (95% CI)",
+  xlab = "Risk Ratio"
+)
+
+#Add descriptive variables to meta object 
+
+meta_mjcv$`age (mean)`       <- meta_mjcv$`age (mean)`
+meta_mjcv$`female (%)`       <- meta_mjcv$`female (%)`
+meta_mjcv$`high CV risk (%)` <- meta_mjcv$`high CV risk (%)`
+meta_mjcv$`DM (%)`           <- meta_mjcv$`DM (%)` 
+meta_mjcv$`FUP_MCVE`        <- meta_mjcv$`FUP_MCVE`
+
+# Forest plot in pdf
+pdf("forest_metaACM_rr.pdf", width = 16, height = 7)
+
+forest(
+  meta_mjcv,
+  label.e = "Lower BP goals",
+  label.c = "Higher BP goals",
+  
+  leftcols = c("studlab",
+               "event.e", "n.e", "event.c", "n.c",
+               "age (mean)", "female (%)", "high CV risk (%)",
+               "DM (%)", "FUP_MCVE"),
+  leftlabs = c("Study",
+               "Events", "Total", "Events", "Total",
+               "Age (mean)", "Female (%)", "High CV risk (%)",
+               "DM (%)", "FU (months)"),
+  
+  comb.fixed = FALSE,
+  comb.random = TRUE,
+  print.study.ci = TRUE,
+  showweights = TRUE,
+  digits = 2,
+  colgap.left = "7mm",
+  fontsize = 10,
+  plotwidth = "9cm",
+  xlim = c(0.1,10),
+  pooled.events = TRUE,
+  print.I2.ci = TRUE,
+  print.tau2 = TRUE,
+  overall.hetstat = TRUE,
+  test.overall = TRUE
+)
+
+# Title
+grid.text(
+  "Major Cardiovascular Events Sensitivity Analysis by SBP Goal",
+  x = unit(0.5, "npc"),
+  y = unit(0.97, "npc"),
+  gp = gpar(fontsize = 13, fontface = "bold")
+)
+dev.off()
+
+Outcome: Orthostatic Hypotension
+
+NB: Ortho, falls, and kidney respective denominators were used!!
+
+library(dplyr)
+library(tidyverse)
+library(meta)
+library(readxl)
+
+g <- read_excel("follow up KQ1.xlsx")
+
+s<- read_excel("reshaped_main_with_all_RoB.xlsx")
+
+f <- read_excel("ACP KQ1_all studies v7_Final_DP(bp goals).xlsx")
+
+
+merged <- s |>
+  left_join(f, by = "Study") |>
+  left_join(g, by = "Study")      # third table
+
+merged <- merged %>%
+  mutate(
+    SBP_Cut_Off = case_when(
+      !is.na(`Lower (SBP)`) & `Lower (SBP)` < 120 ~ "<120",
+      !is.na(`Lower (SBP)`) & `Lower (SBP)` >= 120 & `Lower (SBP)` < 130 ~ "<130",
+      TRUE ~ NA_character_
+    )
+  )
+
+merged_mk <- merged %>%
+  mutate(`Lower (SBP)` = as.numeric(as.character(`Lower (SBP)`))) %>%
+  filter(!is.na(`Lower (SBP)`))
+
+colnames(merged_mk)
+# --- Keep descriptive variables ---
+
+num_cols <- c("ortho_low", "nTOT_ortho_low", "ortho_control", "nTOT_ortho_control")  # right outcome
+
+# force numeric conversion
+merged_mk[num_cols] <- lapply(merged_mk[num_cols], \(x) as.numeric(as.character(x)))
+colnames(merged_mk)
+
+descriptive_vars <- c(
+  "age (mean)", "female (%)", "high CV risk (%)", "DM (%)",
+  "SBP_Cut_Off",
+  "FUP_ACM", "FUP_CVM", "FUP_MCVE",
+  "FUP_stroke", "FUP_kidney", "FUP_syncope",
+  "FUP_ortho", "FUP_falls",
+  "FUP_qol_phy", "FUP_qol_ment",
+  "FUP_qol_EQ5D", "FUP_qol_EQVAS"
+)
+meta_mcve <- merged_mk%>%     # same variable assignments used for coding sake and to save time!
+  select(Study, all_of(num_cols), all_of(descriptive_vars))
+
+view(meta_mcve)
+colnames(meta_mcve)
+
+# 2. Convert to numeric first
+meta_mcve[num_cols] <- lapply(meta_mcve[num_cols], function(x) as.numeric(as.character(x)))
+
+# 4. Remove rows with any NA in numeric columns
+meta_mcv <- meta_mcve %>%
+  filter(complete.cases(across(all_of(num_cols))))
+
+view(meta_mcv) # suppose to return 5 obs.
+
+# 6. Check lengths
+length(meta_mcv$ortho_low)
+length(meta_mcv$ SBP_Cut_Off)
+
+meta_make <- meta_mcv %>%
+  mutate(across(all_of(num_cols), ~as.numeric(as.character(.)))) %>%
+  mutate(SBP_Cut_Off = trimws(as.character(SBP_Cut_Off))) %>%
+  filter(complete.cases(across(c(all_of(num_cols), "SBP_Cut_Off")))) 
+
+
+# arrange studies in the order of bp goal
+meta_make <- meta_make|>
+  mutate(
+    SBP_Cut_Off = factor(
+      SBP_Cut_Off,
+      levels = c("<120", "<130")
+    )
+  ) |>
+  arrange(SBP_Cut_Off)
+
+view(meta_make)
+
+
+# Ensure subgroup variable is quoted correctly
+meta_l <- metabin(
+  event.e = ortho_low,
+  n.e = nTOT_ortho_low,
+  event.c = ortho_control,
+  n.c = nTOT_ortho_control,
+  studlab = Study,
+  data = meta_make,
+  sm = "RR",
+  method = "Inverse",
+  common = FALSE,
+  random = TRUE,
+  subgroup = meta_make$SBP_Cut_Off,
+  method.tau = "REML",
+  incr = "TACC"
+)
+
+
+forest(
+  meta_l,
+  print.byvar = TRUE,
+  text.random = "Overall (Random effects)",
+  prediction = TRUE,
+  print.I2 = TRUE,
+  
+  smlab = "Risk Ratio (95% CI)",
+  xlab = "Risk Ratio"
+)
+
+#Add descriptive variables to meta object 
+
+meta_l$`age (mean)`       <- meta_l$`age (mean)`
+meta_l$`female (%)`       <- meta_l$`female (%)`
+meta_l$`high CV risk (%)` <- meta_l$`high CV risk (%)`
+meta_l$`DM (%)`           <- meta_l$`DM (%)` 
+meta_l$`FUP_ortho`        <- meta_l$`FUP_ortho`
+
+# Forest plot in pdf
+pdf("forest_metaACM_rr.pdf", width = 16, height = 7)
+
+forest(
+  meta_l,
+  label.e = "Lower BP goals",
+  label.c = "Higher BP goals",
+  
+  leftcols = c("studlab",
+               "event.e", "n.e", "event.c", "n.c",
+               "age (mean)", "female (%)", "high CV risk (%)",
+               "DM (%)", "FUP_ortho"),   
+  leftlabs = c("Study",
+               "Events", "Total", "Events", "Total",
+               "Age (mean)", "Female (%)", "High CV risk (%)",
+               "DM (%)", "FU (months)"),
+  
+  comb.fixed = FALSE,
+  comb.random = TRUE,
+  print.study.ci = TRUE,
+  showweights = TRUE,
+  digits = 2,
+  colgap.left = "7mm",
+  fontsize = 10,
+  plotwidth = "9cm",
+  xlim = c(0.1,10),
+  pooled.events = TRUE,
+  print.I2.ci = TRUE,
+  print.tau2 = TRUE,
+  overall.hetstat = TRUE,
+  test.overall = TRUE
+)
+
+# Title
+grid.text(
+  "Sensitivity Analysis of Orthostatic Hypotension Events by Systolic BP Goal",
+  x = unit(0.5, "npc"),
+  y = unit(0.97, "npc"),
+  gp = gpar(fontsize = 13, fontface = "bold")
+)
+dev.off()
+
+
+Outcome: ACM Diastolic Cut-off
+
+library(grid)
+library(dplyr)
+library(tidyverse)
+library(meta)
+library(ggplot2)
+library(readxl)
+
+g <- read_excel("follow up KQ1.xlsx")
+
+s<- read_excel("reshaped_main_with_all_RoB.xlsx")
+
+f <- read_excel("ACP KQ1_all studies v7_Final_DP(bp goals).xlsx")
+
+
+merged <- s |>
+  left_join(f, by = "Study") |>
+  left_join(g, by = "Study")      # third table
+
+merged <- merged %>%
+  mutate(
+    SBP_Cut_Off = case_when(
+      !is.na(`Lower (DBP)`) & `Lower (DBP)` <= 80 ~ "≤80",
+      !is.na(`Lower (DBP)`) & `Lower (DBP)` >= 80 ~ ">80",
+      TRUE ~ NA_character_
+    )
+  )
+
+merged_mk <- merged %>%
+  mutate(`Lower (DBP)` = as.numeric(as.character(`Lower (DBP)`))) %>%
+  filter(!is.na(`Lower (DBP)`))
+
+colnames(merged_mk)
+# --- Keep descriptive variables ---
+
+num_cols <- c("ACM_low", "nTOT_low", "ACM_control", "nTOT_control")
+
+# force numeric conversion
+merged_mk[num_cols] <- lapply(merged_mk[num_cols], \(x) as.numeric(as.character(x)))
+colnames(merged_mk)
+
+descriptive_vars <- c(
+  "age (mean)", "female (%)", "high CV risk (%)", "DM (%)",
+  "SBP_Cut_Off",
+  "FUP_ACM", "FUP_CVM", "FUP_MCVE",
+  "FUP_stroke", "FUP_kidney", "FUP_syncope",
+  "FUP_ortho", "FUP_falls",
+  "FUP_qol_phy", "FUP_qol_ment",
+  "FUP_qol_EQ5D", "FUP_qol_EQVAS"
+)
+meta_mcve <- merged_mk%>%
+  select(Study, all_of(num_cols), all_of(descriptive_vars))
+
+view(meta_mcve)
+colnames(meta_mcve)
+
+# 2. Convert to numeric first
+meta_mcve[num_cols] <- lapply(meta_mcve[num_cols], function(x) as.numeric(as.character(x)))
+
+# 4. Remove rows with any NA in numeric columns after conversion
+meta_mcv <- meta_mcve %>%
+  filter(complete.cases(across(all_of(num_cols))))
+
+view(meta_mcv) # suppose to return 8 obs.
+
+# 6. Check lengths
+length(meta_mcv$ACM_low) # 8
+length(meta_mcv$ SBP_Cut_Off)
+
+meta_make <- meta_mcv %>%
+  mutate(across(all_of(num_cols), ~as.numeric(as.character(.)))) %>%
+  mutate(SBP_Cut_Off = trimws(as.character(SBP_Cut_Off))) %>%
+  filter(complete.cases(across(c(all_of(num_cols), "SBP_Cut_Off")))) 
+
+
+# arrange studies in the order of bp goal from lower to higher
+meta_make <- meta_make|>
+  mutate(
+    DBP_Cut_Off = factor(
+      DBP_Cut_Off,
+      levels = c("≤80", ">80")
+    )
+  ) |>
+  arrange(DBP_Cut_Off)
+
+view(meta_make)
+
+
+# Ensure subgroup variable is quoted correctly
+meta_l <- metabin(
+  event.e = ACM_low,
+  n.e = nTOT_low,
+  event.c = ACM_control,
+  n.c = nTOT_control,
+  studlab = Study,
+  data = meta_make,
+  sm = "RR",
+  method = "Inverse",
+  common = FALSE,
+  random = TRUE,
+  subgroup = meta_make$SBP_Cut_Off,
+  method.tau = "REML",
+  incr = "TACC"
+)
+
+
+forest(
+  meta_l,
+  print.byvar = TRUE,
+  text.random = "Overall (Random effects)",
+  prediction = TRUE,
+  print.I2 = TRUE,
+  
+  smlab = "Risk Ratio (95% CI)",
+  xlab = "Risk Ratio"
+)
+
+#Add descriptive variables to meta object 
+
+meta_l$`age (mean)`       <- meta_l$`age (mean)`
+meta_l$`female (%)`       <- meta_l$`female (%)`
+meta_l$`high CV risk (%)` <- meta_l$`high CV risk (%)`
+meta_l$`DM (%)`           <- meta_l$`DM (%)` 
+meta_l$`FUP_falls`        <- meta_l$`FUP_falls`
+
+# Forest plot in pdf
+pdf("forest_metaACM_rr.pdf", width = 16, height = 7)
+
+forest(
+  meta_l,
+  label.e = "Lower BP goals",
+  label.c = "Higher BP goals",
+  
+  leftcols = c("studlab",
+               "event.e", "n.e", "event.c", "n.c",
+               "age (mean)", "female (%)", "high CV risk (%)",
+               "DM (%)", "FUP_ortho"),
+  leftlabs = c("Study",
+               "Events", "Total", "Events", "Total",
+               "Age (mean)", "Female (%)", "High CV risk (%)",
+               "DM (%)", "FU (months)"),
+  
+  comb.fixed = FALSE,
+  comb.random = TRUE,
+  print.study.ci = TRUE,
+  showweights = TRUE,
+  digits = 2,
+  colgap.left = "7mm",
+  fontsize = 10,
+  plotwidth = "9cm",
+  xlim = c(0.1,10),
+  pooled.events = TRUE,
+  print.I2.ci = TRUE,
+  print.tau2 = TRUE,
+  overall.hetstat = TRUE,
+  test.overall = TRUE,
+  prediction = TRUE
+)
+
+# Title
+grid.text(
+  "Sensitivity Analysis of Fall Events by Systolic BP Goal",
+  x = unit(0.5, "npc"),
+  y = unit(0.97, "npc"),
+  gp = gpar(fontsize = 13, fontface = "bold")
+)
+dev.off()
+
+
+
+
+
+
+
+SBP sensitivity analysis per BP Goal for outcome ACM 
+
+I adjusted this script for the remaining outcomes, and took into account the different denominators for falls, ortho, and kidney as in the dataset.
+
+f <- read_excel("follow up KQ1.xlsx")
+
+
+d<- read_excel("ACP KQ1_all studies v7_Final_DP(bp goals).xlsx")
+l <- read_excel("reshaped_main_with_all_RoB.xlsx")
+
+merged <- l |>
+  left_join(d, by = "Study") |>
+  left_join(f, by = "Study")      # third table
+
+merged <- merged %>%
+  mutate(
+    BP_goal_group_SBP = case_when(
+      !is.na(`Lower (SBP)`) & `Lower (SBP)` < 120 ~ "<120",
+      `Lower (SBP)` >= 120 & `Lower (SBP)` < 130 ~ "120–129",
+      `Lower (SBP)` >= 130 & `Lower (SBP)` < 140 ~ "130–139",
+      `Lower (SBP)` >= 140 & `Lower (SBP)` < 150 ~ "140–149",
+      `Lower (SBP)` >= 150 ~ "≥150",
+      TRUE ~ NA_character_
+    )
+  )
+
+
+merged_cl <- merged %>%
+  mutate(`Lower (SBP)` = as.numeric(as.character(`Lower (SBP)`))) %>%
+  filter(!is.na(`Lower (SBP)`))
+
+nrow(merged_cl) # suppose to return 21 rows
+colnames(merged_cl)
+# --- Keep descriptive variables ---
+
+num_cols <- c("ACM_low", "nTOT_low", "ACM_control", "nTOT_control")
+
+# force numeric conversion
+merged_cl[num_cols] <- lapply(merged_cl[num_cols], \(x) as.numeric(as.character(x)))
+
+descriptive_vars <- c(
+  "age (mean)", "female (%)", "high CV risk (%)", "DM (%)",
+  "BP_goal_group_SBP",
+  "FUP_ACM", "FUP_CVM", "FUP_MCVE",
+  "FUP_stroke", "FUP_kidney", "FUP_syncope",
+  "FUP_ortho", "FUP_falls",
+  "FUP_qol_phy", "FUP_qol_ment",
+  "FUP_qol_EQ5D", "FUP_qol_EQVAS"
+)
+meta_data <- merged_cl%>%
+  select(Study, all_of(num_cols), all_of(descriptive_vars))
+
+#Remove rows where any event column is NA after conversion
+meta_dw <- meta_data %>%
+  filter(complete.cases(across(all_of(num_cols))))
+nrow(meta_dw)
+
+# 2. Convert to numeric first
+meta_dw[num_cols] <- lapply(meta_dw[num_cols], function(x) as.numeric(as.character(x)))
+
+# 4. Remove rows with any NA in numeric columns
+meta_df <- meta_dw %>%
+  filter(complete.cases(across(all_of(num_cols))))
+
+view(meta_df)
+
+# 6. Check lengths
+length(meta_df$ACM_low)
+length(meta_df$BP_goal_group_SBP)
+
+table(is.na(meta_df$ACM_low))  # should all be FALSE
+
+meta_clin <- meta_df %>%
+  # Force numeric for all meta-analysis variables
+  mutate(across(all_of(num_cols), ~as.numeric(as.character(.)))) %>%
+  # Ensure subgroup variable is a clean character string
+  mutate(BP_goal_group_SBP = trimws(as.character(BP_goal_group_SBP))) %>%
+  # Keep only rows where ALL required variables are non-NA
+  filter(complete.cases(across(c(all_of(num_cols), "BP_goal_group_SBP")))) 
+
+meta_cln <- meta_clin %>%
+  mutate(across(all_of(num_cols), ~as.numeric(as.character(.)))) %>%
+  mutate(BP_goal_group_SBP = trimws(as.character(BP_goal_group_SBP))) %>%
+  filter(complete.cases(across(c(all_of(num_cols), "BP_goal_group_SBP")))) 
+# *** ORDER rows by SBP goal ***
+meta_cln <- meta_cln %>% arrange("BP_goal_group_SBP")
+
+# arrange studies in the order of bp goal
+meta_cln <- meta_cln |>
+  mutate(
+    BP_goal_group_SBP = factor(
+      BP_goal_group_SBP,
+      levels = c("<120", "120–129", "130–139", "140–149", "≥150")
+    )
+  ) |>
+  arrange(BP_goal_group_SBP)
+
+
+# Ensure subgroup variable is quoted correctly
+meta_r <- metabin(
+  event.e = ACM_low,
+  n.e = nTOT_low,
+  event.c = ACM_control,
+  n.c = nTOT_control,
+  studlab = Study,
+  data = meta_cln,
+  sm = "RR",
+  method = "Inverse",
+  common = FALSE,
+  random = TRUE,
+  subgroup = meta_cln$BP_goal_group_SBP,
+  method.tau = "REML",
+  incr = "TACC"
+)
+
+
+forest(
+  meta_r,
+  print.byvar = TRUE,
+  text.random = "Overall (Random effects)",
+  prediction = TRUE,
+  print.I2 = TRUE,
+  
+  smlab = "Risk Ratio (95% CI)",
+  xlab = "Risk Ratio"
+)
+
+#Add descriptive variables to meta object 
+
+meta_r$`age (mean)`       <- meta_cln$`age (mean)`
+meta_r$`female (%)`       <- meta_cln$`female (%)`
+meta_r$`high CV risk (%)` <- meta_cln$`high CV risk (%)`
+meta_r$`DM (%)`           <- meta_cln$`DM (%)` 
+meta_r$"FUP_ACM"        <- meta_cln$"FUP_ACM"
+
+# Forest plot in pdf
+pdf("forest_metaACM_rr.pdf", width = 16, height = 7)
+
+forest(
+  meta_r,
+  label.e = "Lower BP goals",
+  label.c = "Higher BP goals",
+  
+  leftcols = c("studlab",
+               "event.e", "n.e", "event.c", "n.c",
+               "age (mean)", "female (%)", "high CV risk (%)",
+               "DM (%)", "FUP_ACM"),
+  leftlabs = c("Study",
+               "Events", "Total", "Events", "Total",
+               "Age (mean)", "Female (%)", "High CV risk (%)",
+               "DM (%)", "FU (months)"),
+  
+  comb.fixed = FALSE,
+  comb.random = TRUE,
+  print.study.ci = TRUE,
+  showweights = TRUE,
+  digits = 2,
+  colgap.left = "4mm",
+  fontsize = 10,
+  plotwidth = "9cm",
+  xlim = c(0.1,10),
+  pooled.events = TRUE,
+  print.I2.ci = TRUE,
+  print.tau2 = TRUE,
+  overall.hetstat = TRUE,
+  test.overall = TRUE
+)
+
+# Title
+grid.text(
+  "ACM Sensitivity Analysis of Studies by Systolic BP Goal",
+  x = unit(0.5, "npc"),
+  y = unit(0.97, "npc"),
+  gp = gpar(fontsize = 13, fontface = "bold")
+)
+dev.off()
+
+
+
+RoB Sensitivity Analysis
+
+library(grid)
+library(readxl)
+dstr <- read_excel("reshaped_main_with_all_RoB.xlsx")
+
+colnames(dstr)
+
+data_str <- dstr%>%
+  mutate(
+    RoB_stroke_Overall_subgroup = case_when(
+      RoB_stroke_Overall == "High" ~ "Some concern to high",
+      RoB_stroke_Overall == "Some concerns" ~ "Some concern to high",
+      RoB_stroke_Overall == "Low" ~ "Low",
+      TRUE ~ NA_character_   # catch any unexpected values
+    )
+  )
+colnames(data_str)
+
+data_str$stroke_low <- as.numeric(data_str$stroke_low)
+data_str$nTOT_low <- as.numeric(data_str$nTOT_low)
+data_str$stroke_control <- as.numeric(data_str$stroke_control)
+data_str$nTOT_control <- as.numeric(data_str$nTOT_control)
+
+data_str <- subset(data_str, !is.na(stroke_low) & !is.na(stroke_control) & !is.na(RoB_stroke_Overall_subgroup))
+
+
+meta_str <- metabin(event.e = stroke_low, n.e = nTOT_low,
+                    event.c = stroke_control, n.c = nTOT_control,
+                    studlab = Study,
+                    data = data_str,
+                    sm = "RR",
+                    method = "Inverse",
+                    common = FALSE,
+                    subgroup = RoB_stroke_Overall_subgroup,
+                    random = TRUE,
+                    method.tau = "REML", incr = "TACC")
+
+
+forest(meta_str,
+       pooled.events = TRUE,
+       label.e = "Lower BP goals",
+       label.c = "Higher BP goals",
+       colgap.left = "5mm", 
+       rows.gr = 4)
+grid.text(" Stroke Sensitivity Analysis of RoB Low vs Some Concerns to High",
+          x = unit(0.5, "npc"),
+          y = unit(0.93, "npc"),
+          gp = gpar(fontsize = 14, fontface = "bold"))
+dev.off()
+
+
+
+

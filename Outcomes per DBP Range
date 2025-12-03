@@ -1,0 +1,170 @@
+
+install.packages("tidyverse")
+library(dplyr)
+library(grid)
+library(meta)
+library(tidyverse)
+library(ggplot2)
+
+f <- read_excel("Additional Analysis BP_scripts/subgroup2_cut-offs/Sensitivity_BP_cut-off/ACP KQ1_all studies v7_Final_DP(bp goals).xlsx")
+l <- read_excel("Additional Analysis BP_scripts/subgroup2_cut-offs/Sensitivity_BP_cut-off/reshaped_main_with_all_RoB_update.xlsx")
+d <- read_excel("Additional Analysis BP_scripts/subgroup2_cut-offs/Sensitivity_BP_cut-off/follow up KQ1_updated.xlsx")
+
+#  Merge them 
+merged <- l |>
+  left_join(d, by = "Study") |>
+  left_join(f, by = "Study")      # third table
+
+
+merged <- merged %>%                      
+  mutate(
+    BP_goal_group_DBP = case_when(
+      !is.na(`Lower (DBP)`) & `Lower (DBP)` < 70   ~ "≤69",
+      `Lower (DBP)` >= 70 & `Lower (DBP)` < 80     ~ "70–79",
+      `Lower (DBP)` >= 80 & `Lower (DBP)` < 90     ~ "80–89",
+      TRUE ~ NA_character_                    # remove >=90 since only one study (wei et al) and both arms had the same goal
+    )
+  )
+
+
+# --- Keep descriptive variables ---
+
+num_cols <- c("ACM_low", "nTOT_low", "ACM_control", "nTOT_control")
+
+# force numeric conversion
+merged[num_cols] <- lapply(merged[num_cols], \(x) as.numeric(as.character(x)))
+
+descriptive_vars <- c(
+  "age (mean)", "female (%)", "high CV risk (%)", "DM (%)",
+  "BP_goal_group_DBP",
+  "FUP_ACM", "FUP_CVM", "FUP_MCVE",
+  "FUP_stroke", "FUP_kidney", "FUP_syncope",
+  "FUP_ortho", "FUP_falls",
+  "FUP_qol_phy", "FUP_qol_ment",
+  "FUP_qol_EQ5D", "FUP_qol_EQVAS"
+)
+
+meta_acme <- merged%>%
+  select(Study, all_of(num_cols), all_of(descriptive_vars))
+
+#Remove rows where any event column is NA after conversion
+meta_acm <- meta_acme%>%
+  filter(complete.cases(across(all_of(num_cols))))
+
+# 2. Convert to numeric first
+meta_acm[num_cols] <- lapply(meta_acm[num_cols], function(x) as.numeric(as.character(x)))
+
+# 4. Remove rows with any NA in numeric columns
+meta_acm <- meta_acm %>%
+  filter(complete.cases(across(all_of(num_cols))))
+
+
+meta_acm<- meta_acm %>%
+  # Force numeric for all meta-analysis variables
+  mutate(across(all_of(num_cols), ~as.numeric(as.character(.)))) %>%
+  # Ensure subgroup variable is a clean character string
+  mutate(BP_goal_group_DBP = trimws(as.character(BP_goal_group_DBP))) %>%
+  # Keep only rows where ALL required variables are non-NA
+  filter(complete.cases(across(c(all_of(num_cols), "BP_goal_group_DBP")))) 
+
+# arrange studies in the order of bp goal
+meta_acm <- meta_acm|>
+  mutate(
+    BP_goal_group_DBP = factor(
+      BP_goal_group_DBP,
+      levels = c("70–79", "80–89", "90")
+    )
+  ) |>
+  arrange(BP_goal_group_DBP)
+
+view(meta_acm)
+
+# Ensure subgroup variable is quoted correctly - !!! use mcve for acm for coding sake
+
+meta_acm1 <- metabin(
+  event.e = ACM_low, # the correct variable passed!
+  n.e = nTOT_low,
+  event.c = ACM_control,
+  n.c = nTOT_control,
+  studlab = Study,
+  data = meta_acm,
+  sm = "RR",
+  method = "Inverse",
+  common = FALSE,
+  random = TRUE,
+  subgroup = BP_goal_group_DBP,   # 
+  method.tau = "REML",
+  incr = "TACC"
+)
+
+forest(
+  meta_acm1,
+  print.byvar = TRUE,
+  text.random = "Overall (Random effects)",
+  prediction = TRUE,
+  print.I2 = TRUE,
+  
+  smlab = "Risk Ratio (95% CI)",
+  xlab = "Risk Ratio"
+)
+
+#Add descriptive variables to meta object 
+meta_acm1$`age (mean)`       <- meta_acm$`age (mean)`
+meta_acm1$`female (%)`       <- meta_acm$`female (%)`
+meta_acm1$`high CV risk (%)` <- meta_acm$`high CV risk (%)`
+meta_acm1$`DM (%)`           <- meta_acm$`DM (%)` 
+meta_acm1$`FUP_ACM`     <- meta_acm$`FUP_ACM`
+
+
+###########
+# to compute the number of studies
+k_studies <- length(unique(meta_acm$Study))
+
+# Forest plot in pdf
+forest(
+  meta_acm1,
+  label.e = "Lower BP goals",
+  label.c = "Higher BP goals",
+  
+  leftcols = c("studlab",
+               "event.e", "n.e", "event.c", "n.c",
+               "age (mean)", "female (%)", "high CV risk (%)",
+               "DM (%)", "FUP_ACM"),
+  leftlabs = c("Study",
+               "Events", "Total", "Events", "Total",
+               "Age (mean)", "Female (%)", "High CV risk (%)",
+               "DM (%)", "FU (months)"),
+  
+  comb.fixed = FALSE,
+  comb.random = TRUE,
+  print.study.ci = TRUE,
+  showweights = TRUE,
+  digits = 2,
+  colgap.left = "7mm",
+  fontsize = 10,
+  plotwidth = "9cm",
+  xlim = c(0.1,10),
+  pooled.events = TRUE,
+  print.I2.ci = TRUE,
+  print.tau2 = TRUE,
+  overall.hetstat = TRUE,
+  test.overall = TRUE
+)
+
+# Title
+grid.text(
+  "Analysis of Mortality Events by Diastolic BP Goal",
+  x = unit(0.5, "npc"),
+  y = unit(0.93, "npc"),
+  gp = gpar(fontsize = 13, fontface = "bold")
+)
+grid.text(
+  paste("Number of studies (k):", k_studies),
+  x = unit(0.02, "npc"),   # left margin
+  y = unit(0.03, "npc"),   # bottom margin
+  just = c("left", "bottom"),
+  gp = gpar(fontsize = 10)
+)
+
+dev.off()
+
